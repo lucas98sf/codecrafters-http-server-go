@@ -13,6 +13,17 @@ type HttpHeader struct {
 	version string
 }
 
+const VERSION = "HTTP/1.1"
+const CRLF = "\r\n"
+const OK = VERSION + " 200 OK"
+const NOT_FOUND = VERSION + " 404 Not Found"
+
+const ContentPlain = "Content-Type: text/plain"
+
+func contentLength (content string) string {
+	return string([]byte("Content-Length: ")) + fmt.Sprint(len(content))
+}
+
 func main() {
 	fmt.Println("Logs from your program will appear here!")
 
@@ -37,13 +48,18 @@ func main() {
 	}
 	str_req := strings.Split(string(req), " ")
 	header := HttpHeader{method: str_req[0], path: str_req[1], version: str_req[2]}
+	path := strings.Split(string(header.path), "/")
 
 	var res []byte
 	if header.path == "/" {
-		res = []byte("HTTP/1.1 200 OK\r\n\r\n")
+		res = []byte(fmt.Sprintln(OK) + CRLF)
+	} else if path[1] == "echo" {
+		res = []byte(strings.Join([]string{OK, ContentPlain, contentLength(path[2]), CRLF + path[2]}, CRLF))
 	} else {
-		res = []byte("HTTP/1.1 404 Not Found\r\n\r\n")
+		res = []byte(fmt.Sprintln(NOT_FOUND) + CRLF)
 	}
+
+	fmt.Println(string(res))
 
 	_, err = conn.Write(res)
 	if err != nil {
