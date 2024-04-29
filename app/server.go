@@ -13,6 +13,11 @@ type HttpHeader struct {
 	version string
 }
 
+type Header struct {
+	key string
+	value string
+}
+
 const VERSION = "HTTP/1.1"
 const CRLF = "\r\n"
 const OK = VERSION + " 200 OK"
@@ -46,15 +51,26 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	str_req := strings.Split(string(req), " ")
-	header := HttpHeader{method: str_req[0], path: str_req[1], version: str_req[2]}
-	path := strings.Split(string(header.path), "/")
+	headers := strings.Split(string(req), "\r\n")
+	http_header_str := strings.Split(headers[0], " ")
+	http_header := HttpHeader{method: http_header_str[0], path: http_header_str[1], version: http_header_str[2]}
+
+	user_agent_str := strings.Split(headers[2], " ")
+	user_agent_header := Header{key: user_agent_str[0], value: user_agent_str[1]}
+
+	path := strings.Split(string(http_header.path), "/")
 
 	var res []byte
-	if header.path == "/" {
+	if http_header.path == "/" {
 		res = []byte(fmt.Sprintln(OK) + CRLF)
 	} else if path[1] == "echo" {
 		res = []byte(strings.Join([]string{OK, ContentPlain, contentLength(path[2]), CRLF + path[2]}, CRLF))
+	} else if path[1] == "user-agent" {
+		res = []byte(strings.Join([]string{OK,
+			ContentPlain,
+			contentLength(user_agent_header.value),
+			CRLF + user_agent_header.value},
+			CRLF))
 	} else {
 		res = []byte(fmt.Sprintln(NOT_FOUND) + CRLF)
 	}
