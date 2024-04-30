@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -18,12 +19,13 @@ type Header struct {
 	value string
 }
 
-const VERSION = "HTTP/1.1"
-const CRLF = "\r\n"
-const OK = VERSION + " 200 OK"
-const NOT_FOUND = VERSION + " 404 Not Found"
-
-const ContentPlain = "Content-Type: text/plain"
+const (
+	Version      = "HTTP/1.1"
+	NextLine     = "\r\n"
+	Ok           = Version + " 200 OK"
+	NotFound     = Version + " 404 Not Found"
+	ContentPlain = "Content-Type: text/plain"
+)
 
 func contentLength(content string) string {
 	return string([]byte("Content-Length: ")) + fmt.Sprint(len(content))
@@ -47,20 +49,38 @@ func handleConnection(conn net.Conn) {
 
 	var res []byte
 	if http_header.path == "/" {
-		res = []byte(fmt.Sprintln(OK) + CRLF)
+		res = []byte(fmt.Sprintln(Ok) + NextLine)
 	} else if path[1] == "echo" {
-		res = []byte(strings.Join([]string{OK, ContentPlain, contentLength(path[2]), CRLF + path[2]}, CRLF))
+		res = []byte(strings.Join([]string{Ok, ContentPlain, contentLength(path[2]), NextLine + path[2]}, NextLine))
 	} else if path[1] == "user-agent" {
 		user_agent_str := strings.Split(headers[2], " ")
 		user_agent_header := Header{key: user_agent_str[0], value: user_agent_str[1]}
 
-		res = []byte(strings.Join([]string{OK,
+		res = []byte(strings.Join([]string{Ok,
 			ContentPlain,
 			contentLength(user_agent_header.value),
-			CRLF + user_agent_header.value},
-			CRLF))
+			NextLine + user_agent_header.value},
+			NextLine))
+	} else if path[1] == "files" {
+		if http_header.method == "GET" {
+			content, err := os.ReadFile(directory + "/" + path[2])
+			if err != nil {
+				res = []byte(fmt.Sprintln(NotFound) + NextLine)
+				_, err = conn.Write(res)
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+				return
+			}
+			res = []byte(strings.Join([]string{Ok,
+				"Content-Type: application/octet-stream",
+				contentLength(string(content)),
+				NextLine + string(content)},
+				NextLine))
+		}
 	} else {
-		res = []byte(fmt.Sprintln(NOT_FOUND) + CRLF)
+		res = []byte(fmt.Sprintln(NotFound) + NextLine)
 	}
 
 	_, err = conn.Write(res)
@@ -70,8 +90,18 @@ func handleConnection(conn net.Conn) {
 	}
 }
 
+var directory string
+
 func main() {
-	fmt.Println("Logs from your program will appear here!")
+	flag.StringVar(&directory, "directory", "", "")
+	flag.Parse()
+	fmt.Println("Directory:", directory)
+	if directory != "" {
+		if _, err := os.Stat(directory); os.IsNotExist(err) {
+			fmt.Println("Directory does not exist", err)
+			os.Exit(1)
+		}
+	}
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
