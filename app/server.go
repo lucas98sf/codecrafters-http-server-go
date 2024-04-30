@@ -23,6 +23,7 @@ const (
 	Version      = "HTTP/1.1"
 	NextLine     = "\r\n"
 	Ok           = Version + " 200 OK"
+	Created      = Version + " 201 Created"
 	NotFound     = Version + " 404 Not Found"
 	ContentPlain = "Content-Type: text/plain"
 )
@@ -41,7 +42,10 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	headers := strings.Split(string(req), "\r\n")
+	request_content := strings.Split(string(req), "\r\n\r\n")
+	headers := strings.Split(request_content[0], NextLine)
+	body := strings.Split(request_content[1], "\x00")[0]
+
 	http_header_str := strings.Split(headers[0], " ")
 	http_header := HttpHeader{method: http_header_str[0], path: http_header_str[1], version: http_header_str[2]}
 
@@ -78,6 +82,13 @@ func handleConnection(conn net.Conn) {
 				contentLength(string(content)),
 				NextLine + string(content)},
 				NextLine))
+		} else if http_header.method == "POST" {
+			err := os.WriteFile(directory+"/"+path[2], []byte(body), 0755)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			res = []byte(fmt.Sprintln(Created) + NextLine)
 		}
 	} else {
 		res = []byte(fmt.Sprintln(NotFound) + NextLine)
