@@ -14,7 +14,7 @@ type HttpHeader struct {
 }
 
 type Header struct {
-	key string
+	key   string
 	value string
 }
 
@@ -25,38 +25,23 @@ const NOT_FOUND = VERSION + " 404 Not Found"
 
 const ContentPlain = "Content-Type: text/plain"
 
-func contentLength (content string) string {
+func contentLength(content string) string {
 	return string([]byte("Content-Length: ")) + fmt.Sprint(len(content))
 }
 
-func main() {
-	fmt.Println("Logs from your program will appear here!")
-
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
-		os.Exit(1)
-	}
-	
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
+func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	req := make([]byte, 1024)
-	_, err = conn.Read(req)
+	_, err := conn.Read(req)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
 	headers := strings.Split(string(req), "\r\n")
 	http_header_str := strings.Split(headers[0], " ")
 	http_header := HttpHeader{method: http_header_str[0], path: http_header_str[1], version: http_header_str[2]}
-
-	user_agent_str := strings.Split(headers[2], " ")
-	user_agent_header := Header{key: user_agent_str[0], value: user_agent_str[1]}
 
 	path := strings.Split(string(http_header.path), "/")
 
@@ -66,6 +51,9 @@ func main() {
 	} else if path[1] == "echo" {
 		res = []byte(strings.Join([]string{OK, ContentPlain, contentLength(path[2]), CRLF + path[2]}, CRLF))
 	} else if path[1] == "user-agent" {
+		user_agent_str := strings.Split(headers[2], " ")
+		user_agent_header := Header{key: user_agent_str[0], value: user_agent_str[1]}
+
 		res = []byte(strings.Join([]string{OK,
 			ContentPlain,
 			contentLength(user_agent_header.value),
@@ -75,10 +63,29 @@ func main() {
 		res = []byte(fmt.Sprintln(NOT_FOUND) + CRLF)
 	}
 
-	fmt.Println(string(res))
-
 	_, err = conn.Write(res)
 	if err != nil {
 		fmt.Println(err)
+		return
+	}
+}
+
+func main() {
+	fmt.Println("Logs from your program will appear here!")
+
+	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	if err != nil {
+		fmt.Println("Failed to bind to port 4221")
+		return
+	}
+
+	defer l.Close()
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleConnection(conn)
 	}
 }
